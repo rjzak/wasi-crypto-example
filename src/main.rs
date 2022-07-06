@@ -1,4 +1,5 @@
 use wasi_crypto_guest::signatures::SignatureKeyPair;
+use wasi_crypto_guest::prelude::Hash;
 
 fn main() {
     const TEST_DATA: &str = "test";
@@ -52,4 +53,18 @@ fn main() {
             return;
         }
     }
+
+    let hash = match Hash::hash("SHA-256", TEST_DATA.as_bytes(), 32, None) {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("Error hashing test data {:?}", e);
+            return;
+        }
+    };
+
+    println!("Hash for \"{}\":", TEST_DATA);
+    for h in hash {
+        print!("{:x}", h);
+    }
+    print!("\n");
 }

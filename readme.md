@@ -21,8 +21,15 @@ Keypair generated.
 Signature for "test":
 6fa385a4c71a6c4566c25fb93ba6f79589213d574841872b8bf14ce54a1341cc29ccecbdd78ccbaee5ca2a1c775cdafeb2dcc7f5e4cfcdc26fb0f06828f0
 Signature validated.
+Hash for "test":
+9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2bb822cd15d6c15b0f0a8
 ```
 * Note that the signature should be different for each run, since the data string is signed using a random key.
+* The SHA hash can be validated via Python:
+```python
+import hashlib
+hashlib.sha256(b"test").hexdigest()
+```
 
 ### Notes:
 * Trying to compile a native binary, with `cargo build --target=x86_64-unknown-linux-gnu` for example, should result in many `undefined reference to....` errors.
