@@ -4,4 +4,4 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-wasi-crypto = "0.1.5"
+wasi-crypto-guest = { path = "wasi-crypto/implementations/bindings/rust" }
