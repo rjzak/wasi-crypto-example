@@ -5,7 +5,7 @@ fn main() {
     const TEST_DATA: &str = "test";
     println!("Hello, world!");
 
-    let keypair = match SignatureKeyPair::generate("ECDSA_P256_SHA256") {
+    let keypair = match SignatureKeyPair::generate("ECDSA_P384_SHA384") {
         Ok(k) => k,
         Err(e) => {
             eprintln!("Error generating keypair: {:?}", e);
@@ -31,10 +31,12 @@ fn main() {
     };
 
     println!("Signature for \"{}\":", TEST_DATA);
-    for v in signature_raw {
+    for v in &signature_raw {
         print!("{:x}", v);
     }
     print!("\n");
+
+    println!("Signature size: {}", signature_raw.len());
 
     let public_key = match keypair.publickey() {
         Ok(k) => k,
