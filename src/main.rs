@@ -46,6 +46,11 @@ fn main() {
         }
     };
 
+    match public_key.raw() {
+        Ok(r) => println!("Public key size: {}", r.len()),
+        Err(e) => eprint!("Error getting raw public key {:?}", e)
+    }
+
     match public_key.signature_verify(TEST_DATA.as_bytes(), &signature) {
         Ok(_) => {
             println!("Signature validated.");
