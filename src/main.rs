@@ -1,17 +1,19 @@
+use const_oid::ObjectIdentifier;
 use const_oid::db::rfc5280::{
     ID_CE_BASIC_CONSTRAINTS, ID_CE_KEY_USAGE,
 };
 use const_oid::db::rfc5912::{
-    ECDSA_WITH_SHA_384, SECP_384_R_1,
+    ECDSA_WITH_SHA_384, SECP_384_R_1, ID_EXTENSION_REQ,
 };
-use der::{asn1::{UIntRef, BitStringRef, GeneralizedTime}};
+use der::{asn1::{AnyRef, UIntRef, BitStringRef, GeneralizedTime}};
 use der::{Decode, Encode};
+use p384::ecdsa::signature::Signature;
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 use std::time::{Duration, SystemTime};
 use wasi_crypto_guest::signatures::SignatureKeyPair;
 use wasi_crypto_guest::prelude::Hash;
-use x509::{name::RdnSequence, time::{Time, Validity}, Certificate, TbsCertificate};
-use x509::ext::pkix::{BasicConstraints, KeyUsage, KeyUsages};
+use x509::{attr::Attribute, {name::RdnSequence, request::{CertReq, CertReqInfo, ExtensionReq}, time::{Time, Validity}, Certificate, TbsCertificate}};
+use x509::ext::{Extension, pkix::{BasicConstraints, KeyUsage, KeyUsages}};
 
 fn main() {
     const TEST_DATA: &str = "test";
@@ -237,5 +239,97 @@ fn main() {
             return;
         }
     }
-    println!("Certificate was successfully constructed and parsed.");
+    println!("Certificate was successfully constructed and parsed, now let's try a Certificate Request.");
+
+    let exts = vec![Extension {
+            extn_id: ObjectIdentifier::new_unwrap("1.3.6.1.4.1.58270.1.1"),
+            critical: false,
+            extn_value: &[],
+        }];
+
+    let req = ExtensionReq::from(exts).to_vec().unwrap();
+    let any = AnyRef::from_der(&req).unwrap();
+    let att = Attribute {
+        oid: ID_EXTENSION_REQ,
+        values: vec![any].try_into().unwrap(),
+    };
+    let cri = CertReqInfo {
+        version: x509::request::Version::V1,
+        attributes: vec![att].try_into().unwrap(),
+        subject: RdnSequence::default(),
+        public_key: SubjectPublicKeyInfo {
+            algorithm: AlgorithmIdentifier {
+                oid: ECDSA_WITH_SHA_384,
+                parameters: None,
+            },
+            subject_public_key: &pub_key_sec.to_vec().unwrap(),
+        },
+    };
+
+    let cri_bytes = cri.to_vec().unwrap();
+
+    let cri_sig = match keypair.sign(cri_bytes) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("keypair.sign() error {:?}", e);
+            return;
+        }
+    };
+    let sign = match cri_sig.raw() {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("keypair.sign().raw() error {:?}", e);
+            return;
+        }
+    };
+    let sign = p384::ecdsa::Signature::from_bytes(&sign).unwrap().to_vec();
+
+    let rval = CertReq {
+        info: cri,
+        algorithm: AlgorithmIdentifier {
+            oid: ECDSA_WITH_SHA_384,
+            parameters: None,
+        },
+        signature: BitStringRef::from_bytes(&sign).unwrap(),
+    };
+
+    let rval = rval.to_vec().unwrap();
+
+    let cr = match CertReq::from_der(rval.as_ref()) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("Failed to decode CertRequest {:?}", e);
+            return;
+        }
+    };
+    println!("Decoded CSR");
+    if cr.info.version != x509::request::Version::V1 {
+        eprintln!("invalid version");
+        return;
+    }
+
+    let signature_obj = match wasi_crypto_guest::signatures::Signature::from_raw("ECDSA_P384_SHA384", cr.signature.as_bytes().unwrap()) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("Failed to get wasi-crypto signature object from bytes {:?}", e);
+            return;
+        }
+    };
+
+    let body = match cr.info.to_vec() {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("Failed to get CR info as bytes {:?}", e);
+            return;
+        }
+    };
+    match public_key.signature_verify(body, &signature_obj) {
+        Ok(_) => {
+            println!("Signature verified!");
+        }
+        Err(e) => {
+            eprintln!("Failed to validate signature {:?}", e);
+            return;
+        }
+    }
 }
