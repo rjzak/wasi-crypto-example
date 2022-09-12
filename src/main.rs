@@ -7,7 +7,6 @@ use const_oid::db::rfc5912::{
 };
 use der::{asn1::{AnyRef, UIntRef, BitStringRef, GeneralizedTime}};
 use der::{Decode, Encode};
-use p384::ecdsa::signature::Signature;
 use spki::{AlgorithmIdentifier, SubjectPublicKeyInfo};
 use std::time::{Duration, SystemTime};
 use wasi_crypto_guest::signatures::SignatureKeyPair;
@@ -17,9 +16,10 @@ use x509::ext::{Extension, pkix::{BasicConstraints, KeyUsage, KeyUsages}};
 
 fn main() {
     const TEST_DATA: &str = "test";
+    const ALGORITHM: &str = "ECDSA_P384_SHA384";
     println!("Hello, world!");
 
-    let keypair = match SignatureKeyPair::generate("ECDSA_P384_SHA384") {
+    let keypair = match SignatureKeyPair::generate(ALGORITHM) {
         Ok(k) => k,
         Err(e) => {
             eprintln!("Error generating keypair: {:?}", e);
@@ -91,14 +91,11 @@ fn main() {
     }
     print!("\n");
 
-    let _pub_key_obj =
-        match elliptic_curve::PublicKey::<p384::NistP384>::from_sec1_bytes(&pub_key_sec) {
-            Ok(x) => x,
-            Err(e) => {
-                eprint!("Error getting sec public key {:?}", e);
-                return;
-            }
-        };
+    println!("Public key raw():");
+    for v in public_key.raw().unwrap() {
+        print!("{:x}", v);
+    }
+    print!("\n");
 
     match public_key.signature_verify(TEST_DATA.as_bytes(), &signature) {
         Ok(_) => {
@@ -282,7 +279,6 @@ fn main() {
             return;
         }
     };
-    let sign = p384::ecdsa::Signature::from_bytes(&sign).unwrap().to_vec();
 
     let rval = CertReq {
         info: cri,
@@ -308,7 +304,7 @@ fn main() {
         return;
     }
 
-    let signature_obj = match wasi_crypto_guest::signatures::Signature::from_raw("ECDSA_P384_SHA384", cr.signature.as_bytes().unwrap()) {
+    let signature_obj = match wasi_crypto_guest::signatures::Signature::from_raw(ALGORITHM, cr.signature.as_bytes().unwrap()) {
         Ok(x) => x,
         Err(e) => {
             eprintln!("Failed to get wasi-crypto signature object from bytes {:?}", e);
@@ -323,12 +319,34 @@ fn main() {
             return;
         }
     };
-    match public_key.signature_verify(body, &signature_obj) {
+
+    match public_key.signature_verify(body.clone(), &signature_obj) {
         Ok(_) => {
-            println!("Signature verified!");
+            println!("Signature verified with original public key!");
         }
         Err(e) => {
-            eprintln!("Failed to validate signature {:?}", e);
+            eprintln!("Failed to validate signature with original public key {:?}", e);
+            return;
+        }
+    }
+
+    let wasi_pubkey = match wasi_crypto_guest::signatures::SignaturePublicKey::from_raw(
+        ALGORITHM,
+        cr.info.public_key.subject_public_key,
+    ) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("CSR failed to get wasi-crypto public key object {:?}", e);
+            return;
+        }
+    };
+
+    match wasi_pubkey.signature_verify(body, &signature_obj) {
+        Ok(_) => {
+            println!("Signature verified with public key from CertRequest!");
+        }
+        Err(e) => {
+            eprintln!("Failed to validate signature with public key from CertRequest {:?}", e);
             return;
         }
     }

@@ -7,7 +7,6 @@ edition = "2021"
 const-oid = { version = "0.9.0", features = ["db"] }
 der = { version = "0.6.0", features = ["std"] }
 elliptic-curve = { version = "0.12", features = ["arithmetic", "std"] }
-p384 = "0.11"
 sec1 = { version = "0.3.0", features = ["std"] }
 spki = { version = "0.6.0" }
 wasi-crypto-guest = { path = "wasi-crypto/implementations/bindings/rust" }
