@@ -71,12 +71,6 @@ fn main() {
         }
     };
 
-    println!("Public key raw():");
-    for v in &pub_key_raw {
-        print!("{:x}", v);
-    }
-    print!("\n");
-
     let pub_key_sec = match public_key.sec() {
         Ok(x) => x,
         Err(e) => {
@@ -96,6 +90,15 @@ fn main() {
         print!("{:x}", v);
     }
     print!("\n");
+
+    match wasi_crypto_guest::signatures::SignaturePublicKey::from_raw(ALGORITHM, public_key.raw().unwrap()) {
+        Ok(_) => {
+            println!("Successfully got back to Wasi-Crypto public key object from bytes");
+        }
+        Err(e) => {
+            eprint!("Error getting public key object from bytes {:?}", e);
+        }
+    }
 
     match public_key.signature_verify(TEST_DATA.as_bytes(), &signature) {
         Ok(_) => {
@@ -259,7 +262,7 @@ fn main() {
                 oid: ECDSA_WITH_SHA_384,
                 parameters: None,
             },
-            subject_public_key: &pub_key_sec.to_vec().unwrap(),
+            subject_public_key: &public_key.raw().unwrap()
         },
     };
 
